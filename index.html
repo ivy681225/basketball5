@@ -237,7 +237,7 @@
 </div>
 
 <script>
-// 🌟 已經完美綁定妳的新專案 basketballw5 金鑰
+// 🌟 綁定新專案 basketballw5 金鑰
 const firebaseConfig = {
   apiKey: "AIzaSyDVYF4wPsemLdaSi-hBnojem6Td3_eoGnw",
   authDomain: "basketballw5.firebaseapp.com",
@@ -253,7 +253,9 @@ if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
 const database = firebase.database();
 const ADMIN_PASSWORD = "dan1225"; 
 let isAdminMode = false;
-const HOLIDAYS = ["2026-01-01", "2026-02-16", "2026-02-23", "2026-03-02", "2026-04-06", "2026-06-22", "2026-09-28", "2026-10-12", "2027-02-08", "2027-03-01", "2027-04-05", "2027-06-14", "2027-09-20"];
+
+// 國定假日或不打球日期（皆為週五）
+const HOLIDAYS = ["2026-01-01", "2026-02-16", "2026-02-23", "2026-03-02", "2026-04-06", "2026-06-22", "2026-09-28", "2026-10-12"];
 
 let currentSelectedDateStr = "";
 let sessionOptionsData = {};
@@ -317,25 +319,18 @@ function findDefaultFridayStr(now, availableDates) {
 function initSelectorOptions() {
   const now = new Date();
   const startDate = new Date("2026-07-03"); // 系統起始球聚點
+  const endDate = new Date("2026-09-19");   // 精準控管截止點，確保不超出 9/18
   
   let availableDates = [];
-  let currentFriday = new Date(now);
-  const currentDay = currentFriday.getDay();
-  const daysUntilFriday = (5 - currentDay + 7) % 7;
-  currentFriday.setDate(currentFriday.getDate() + daysUntilFriday);
-  if (currentDay === 5 && now.getHours() >= 20) { currentFriday.setDate(currentFriday.getDate() + 7); }
-
-  // 自動往後推算與向前生成期數，排除假球期
-  for (let i = -15; i <= 2; i++) {
-    let loopFriday = new Date(currentFriday);
-    loopFriday.setDate(currentFriday.getDate() + (i * 7));
-    
-    if (loopFriday >= startDate) {
-      let loopStr = formatDateToYYYYMMDD(loopFriday);
-      if (!HOLIDAYS.includes(loopStr)) {
-        availableDates.push(loopStr);
-      }
+  
+  // 從 2026-07-03 開始，每 7 天檢查一次，直到 2026-09-18
+  let loopFriday = new Date(startDate);
+  while (loopFriday <= endDate) {
+    let loopStr = formatDateToYYYYMMDD(loopFriday);
+    if (!HOLIDAYS.includes(loopStr)) {
+      availableDates.push(loopStr);
     }
+    loopFriday.setDate(loopFriday.getDate() + 7); // 強制只加 7 天（永遠維持在週五）
   }
   
   availableDates.sort();
@@ -349,9 +344,9 @@ function initSelectorOptions() {
     if (dateStr === currentSelectedDateStr) {
       label += "【⭐ 當期球聚】";
     } else if (dateStr < currentSelectedDateStr) {
-      label += "【倒流歷史紀錄】";
+      label += "【歷史紀錄】";
     } else {
-      label += "【未來預約期數】";
+      label += "【未來預約】";
     }
     
     sessionOptionsData[dateStr] = sessionDetails;
@@ -381,7 +376,6 @@ sessionSelect.addEventListener("change", (e) => {
   switchFirebaseNode(e.target.value);
 });
 
-// 🔄 即時更新狀態公告欄，明確顯示「週日 18:00 ～ 週四 18:00」
 function updateSystemStatus() {
   const now = new Date();
   const activeSession = sessionOptionsData[currentSelectedDateStr];
@@ -440,7 +434,7 @@ function renderList(data) {
     const timeStr = formatFullTimestamp(player.timestamp); const li = document.createElement("li"); const metaDiv = document.createElement("div"); metaDiv.className = "player-meta"; const nameSpan = document.createElement("span"); nameSpan.innerHTML = `<b>${player.name}</b>`; metaDiv.appendChild(nameSpan); const idClass = player.identity === "季租" ? "bg-blue" : "bg-green"; const tagSpan = document.createElement("span"); tagSpan.className = `identity-tag ${idClass}`; tagSpan.innerText = player.identity === "季租" ? "季租(假)" : "散打(假)"; metaDiv.appendChild(tagSpan); li.appendChild(metaDiv); const timeDiv = document.createElement("div"); timeDiv.className = "time-tag"; timeDiv.innerText = `⏱️ ${timeStr}`; li.appendChild(timeDiv);
     if (isAdminMode) { const delBtn = document.createElement("button"); delBtn.innerText = "❌ 刪除"; delBtn.style.cssText = "align-self:flex-end; font-size:11px; margin-top:5px; cursor:pointer; width:auto; padding:2px 8px; background:#ef4444;"; delBtn.addEventListener("click", () => { database.ref(`sessions_friday/${currentSelectedDateStr}/${player.name}`).remove(); }); li.appendChild(delBtn); } leaveList.appendChild(li);
   });
-  document.getElementById("attendCount").innerText = finalAttendCount; document.getElementById("waitCount").innerText = finalWaitCount; document.getElementById("leaveCount").length;
+  document.getElementById("attendCount").innerText = finalAttendCount; document.getElementById("waitCount").innerText = finalWaitCount; document.getElementById("leaveCount").innerText = leavePlayers.length;
 }
 
 submitBtn.addEventListener("click", () => {
