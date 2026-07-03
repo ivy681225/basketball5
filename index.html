@@ -237,7 +237,6 @@
 </div>
 
 <script>
-// 🌟 綁定新專案 basketballw5 金鑰
 const firebaseConfig = {
   apiKey: "AIzaSyDVYF4wPsemLdaSi-hBnojem6Td3_eoGnw",
   authDomain: "basketballw5.firebaseapp.com",
@@ -254,7 +253,6 @@ const database = firebase.database();
 const ADMIN_PASSWORD = "dan1225"; 
 let isAdminMode = false;
 
-// 國定假日或不打球日期（皆為週五）
 const HOLIDAYS = ["2026-01-01", "2026-02-16", "2026-02-23", "2026-03-02", "2026-04-06", "2026-06-22", "2026-09-28", "2026-10-12"];
 
 let currentSelectedDateStr = "";
@@ -273,16 +271,12 @@ const adminStatus = document.getElementById("adminStatus");
 function formatDateToYYYYMMDD(date) { const y = date.getFullYear(); const m = String(date.getMonth() + 1).padStart(2, '0'); const d = String(date.getDate()).padStart(2, '0'); return `${y}-${m}-${d}`; }
 function formatFullTimestamp(ts) { const d = new Date(ts); const year = d.getFullYear(); const month = String(d.getMonth() + 1).padStart(2, '0'); const date = String(d.getDate()).padStart(2, '0'); const hh = String(d.getHours()).padStart(2, '0'); const mm = String(d.getMinutes()).padStart(2, '0'); const ss = String(d.getSeconds()).padStart(2, '0'); return `${year}/${month}/${date} ${hh}:${mm}:${ss}`; }
 
-// 🔄 計算週五球聚對應的「週日 18:00 開放」至「週四 18:00 截止」時間點
 function calculateSessionDetailsForDate(targetFriday) {
   let dateStr = formatDateToYYYYMMDD(targetFriday);
-  
-  // 開放時間：本週五往前推 5 天 = 週日 18:00 
   const openTime = new Date(targetFriday); 
   openTime.setDate(targetFriday.getDate() - 5); 
   openTime.setHours(18, 0, 0, 0); 
   
-  // 截止時間：本週五往前推 1 天 = 週四 18:00
   const finalDeadline = new Date(targetFriday); 
   finalDeadline.setDate(targetFriday.getDate() - 1); 
   finalDeadline.setHours(18, 0, 0, 0);
@@ -301,16 +295,9 @@ function findDefaultFridayStr(now, availableDates) {
   const currentDay = currentFriday.getDay();
   const daysUntilFriday = (5 - currentDay + 7) % 7;
   currentFriday.setDate(currentFriday.getDate() + daysUntilFriday);
-  
-  if (currentDay === 5 && now.getHours() >= 20) { 
-    currentFriday.setDate(currentFriday.getDate() + 7); 
-  }
-  
+  if (currentDay === 5 && now.getHours() >= 20) { currentFriday.setDate(currentFriday.getDate() + 7); }
   let targetStr = formatDateToYYYYMMDD(currentFriday);
-  if (availableDates.includes(targetStr)) {
-    return targetStr;
-  }
-  
+  if (availableDates.includes(targetStr)) return targetStr;
   if (targetStr < availableDates[0]) return availableDates[0];
   if (targetStr > availableDates[availableDates.length - 1]) return availableDates[availableDates.length - 1];
   return availableDates[0];
@@ -318,19 +305,18 @@ function findDefaultFridayStr(now, availableDates) {
 
 function initSelectorOptions() {
   const now = new Date();
-  const startDate = new Date("2026-07-03"); // 系統起始球聚點
-  const endDate = new Date("2026-09-19");   // 精準控管截止點，確保不超出 9/18
+  const startDate = new Date("2026-07-03"); 
+  const endDate = new Date("2026-09-19");   // 強制限定到 9/18 週五球聚為止
   
   let availableDates = [];
-  
-  // 從 2026-07-03 開始，每 7 天檢查一次，直到 2026-09-18
   let loopFriday = new Date(startDate);
+  
   while (loopFriday <= endDate) {
     let loopStr = formatDateToYYYYMMDD(loopFriday);
     if (!HOLIDAYS.includes(loopStr)) {
       availableDates.push(loopStr);
     }
-    loopFriday.setDate(loopFriday.getDate() + 7); // 強制只加 7 天（永遠維持在週五）
+    loopFriday.setDate(loopFriday.getDate() + 7); // 只精準推算週五
   }
   
   availableDates.sort();
@@ -440,7 +426,6 @@ function renderList(data) {
 submitBtn.addEventListener("click", () => {
   const name = nameInput.value.trim(); const identity = identitySelect.value; const status = document.querySelector('input[name="status"]:checked').value; const now = new Date();
   const activeSession = sessionOptionsData[currentSelectedDateStr];
-  
   if (!activeSession) return;
   if (!name) { alert("請輸入姓名！"); return; } 
   if (now < activeSession.openTime) { alert(`抱歉！【${currentSelectedDateStr}】球聚尚未開放登記。`); return; } 
