@@ -389,11 +389,13 @@ adminBtn.addEventListener("click", () => {
   if (inputPwd === ADMIN_PASSWORD) { isAdminMode = true; adminBtn.style.display = "none"; adminStatus.style.display = "inline"; alert("🔑 管理員認證成功！❌ 刪除功能已解鎖。"); renderList(rawCachedData); } else if (inputPwd !== null) { alert("❌ 密碼錯誤！"); }
 });
 
+// 🌟 修改核心：優化截止後的正取名單排序邏輯
 function renderList(data) {
   const attendList = document.getElementById("attendList"); const waitList = document.getElementById("waitList"); const leaveList = document.getElementById("leaveList");
   attendList.innerHTML = ""; waitList.innerHTML = ""; leaveList.innerHTML = "";
   
   const players = []; for (let id in data) { players.push({ id, ...data[id] }); }
+  // 基礎依然是以報名時間排序
   players.sort((a, b) => a.timestamp - b.timestamp);
   
   const now = new Date();
@@ -402,25 +404,111 @@ function renderList(data) {
   
   let seasonAttendCount = 0; let casualPlayers = []; let leavePlayers = [];
   
-  players.forEach(p => { if (p.status === "請假") { leavePlayers.push(p); } else if (p.status === "出賽") { if (p.identity === "季租") { seasonAttendCount++; } else { casualPlayers.push(p); } } });
-  let availableSlots = Math.max(0, 20 - seasonAttendCount); let finalAttendCount = 0; let finalWaitCount = 0;
-  
-  players.forEach(player => {
-    if (player.status === "請假") return;
-    const timeStr = formatFullTimestamp(player.timestamp); const li = document.createElement("li"); const metaDiv = document.createElement("div"); metaDiv.className = "player-meta"; const nameSpan = document.createElement("span"); nameSpan.innerHTML = `<b>${player.name}</b>`; metaDiv.appendChild(nameSpan);
-    let labelText = ""; let idClass = ""; let targetContainer = attendList; 
-    
-    if (player.identity === "季租") { idClass = "bg-blue"; labelText = "季租"; finalAttendCount++; } else { let idx = casualPlayers.findIndex(c => c.name === player.name); if (isClosed) { if (idx !== -1 && idx < availableSlots) { idClass = "bg-green"; labelText = `散打(遞補 ${idx + 1})`; finalAttendCount++; } else { idClass = "bg-orange"; labelText = `散打(候 ${idx - availableSlots + 1})`; targetContainer = waitList; finalWaitCount++; } } else { idClass = "bg-orange"; labelText = `散打(候 ${idx + 1})`; targetContainer = waitList; finalWaitCount++; } }
-    
-    const tagSpan = document.createElement("span"); tagSpan.className = `identity-tag ${idClass}`; tagSpan.innerText = labelText; metaDiv.appendChild(tagSpan); li.appendChild(metaDiv); const timeDiv = document.createElement("div"); timeDiv.className = "time-tag"; timeDiv.innerText = `⏱️ ${timeStr}`; li.appendChild(timeDiv);
-    if (isAdminMode) { const delBtn = document.createElement("button"); delBtn.innerText = "❌ 刪除"; delBtn.style.cssText = "align-self:flex-end; font-size:11px; margin-top:5px; cursor:pointer; width:auto; padding:2px 8px; background:#ef4444;"; delBtn.addEventListener("click", () => { if(confirm(`確認刪除 ${player.name}？`)) database.ref(`sessions_friday/${currentSelectedDateStr}/${player.name}`).remove(); }); li.appendChild(delBtn); } targetContainer.appendChild(li);
+  // 第一步：分離狀態
+  players.forEach(p => { 
+    if (p.status === "請假") { 
+      leavePlayers.push(p); 
+    } else if (p.status === "出賽") { 
+      if (p.identity === "季租") { 
+        seasonAttendCount++; 
+      } else { 
+        casualPlayers.push(p); 
+      } 
+    } 
   });
   
+  let availableSlots = Math.max(0, 20 - seasonAttendCount); 
+  let finalAttendCount = 0; 
+  let finalWaitCount = 0;
+  
+  // 建立暫存陣列，用來分開存放正取區的「季租」與「散打遞補」
+  let finalAttendSeasonListHTML = [];
+  let finalAttendCasualListHTML = [];
+
+  players.forEach(player => {
+    if (player.status === "請假") return;
+    
+    const timeStr = formatFullTimestamp(player.timestamp); 
+    const li = document.createElement("li"); 
+    const metaDiv = document.createElement("div"); 
+    metaDiv.className = "player-meta"; 
+    const nameSpan = document.createElement("span"); 
+    nameSpan.innerHTML = `<b>${player.name}</b>`; 
+    metaDiv.appendChild(nameSpan);
+    
+    let labelText = ""; let idClass = ""; let isWaitZone = false;
+    
+    if (player.identity === "季租") { 
+      idClass = "bg-blue"; 
+      labelText = "季租"; 
+      finalAttendCount++; 
+    } else { 
+      let idx = casualPlayers.findIndex(c => c.name === player.name); 
+      if (isClosed) { 
+        if (idx !== -1 && idx < availableSlots) { 
+          idClass = "bg-green"; 
+          labelText = `散打(遞補 ${idx + 1})`; 
+          finalAttendCount++; 
+        } else { 
+          idClass = "bg-orange"; 
+          labelText = `散打(候 ${idx - availableSlots + 1})`; 
+          isWaitZone = true;
+          finalWaitCount++; 
+        } 
+      } else { 
+        idClass = "bg-orange"; 
+        labelText = `散打(候 ${idx + 1})`; 
+        isWaitZone = true;
+        finalWaitCount++; 
+      } 
+    }
+    
+    const tagSpan = document.createElement("span"); 
+    tagSpan.className = `identity-tag ${idClass}`; 
+    tagSpan.innerText = labelText; 
+    metaDiv.appendChild(tagSpan); 
+    li.appendChild(metaDiv); 
+    
+    const timeDiv = document.createElement("div"); 
+    timeDiv.className = "time-tag"; 
+    timeDiv.innerText = `⏱️ ${timeStr}`; 
+    li.appendChild(timeDiv);
+    
+    if (isAdminMode) { 
+      const delBtn = document.createElement("button"); 
+      delBtn.innerText = "❌ 刪除"; 
+      delBtn.style.cssText = "align-self:flex-end; font-size:11px; margin-top:5px; cursor:pointer; width:auto; padding:2px 8px; background:#ef4444;"; 
+      delBtn.addEventListener("click", () => { 
+        if(confirm(`確認刪除 ${player.name}？`)) database.ref(`sessions_friday/${currentSelectedDateStr}/${player.name}`).remove(); 
+      }); 
+      li.appendChild(delBtn); 
+    } 
+    
+    // 分流推入對應的位置
+    if (isWaitZone) {
+      waitList.appendChild(li);
+    } else {
+      if (player.identity === "季租") {
+        finalAttendSeasonListHTML.push(li); // 季租專用陣列
+      } else {
+        finalAttendCasualListHTML.push(li); // 遞補散打專用陣列
+      }
+    }
+  });
+  
+  // 🌟 精準排序：先將所有「季租」推進正取區列表，緊接著再把「遞補散打」推進去（確保散打一律靠後）
+  finalAttendSeasonListHTML.forEach(el => attendList.appendChild(el));
+  finalAttendCasualListHTML.forEach(el => attendList.appendChild(el));
+  
+  // 請假處理
   leavePlayers.forEach(player => {
     const timeStr = formatFullTimestamp(player.timestamp); const li = document.createElement("li"); const metaDiv = document.createElement("div"); metaDiv.className = "player-meta"; const nameSpan = document.createElement("span"); nameSpan.innerHTML = `<b>${player.name}</b>`; metaDiv.appendChild(nameSpan); const idClass = player.identity === "季租" ? "bg-blue" : "bg-green"; const tagSpan = document.createElement("span"); tagSpan.className = `identity-tag ${idClass}`; tagSpan.innerText = player.identity === "季租" ? "季租(假)" : "散打(假)"; metaDiv.appendChild(tagSpan); li.appendChild(metaDiv); const timeDiv = document.createElement("div"); timeDiv.className = "time-tag"; timeDiv.innerText = `⏱️ ${timeStr}`; li.appendChild(timeDiv);
     if (isAdminMode) { const delBtn = document.createElement("button"); delBtn.innerText = "❌ 刪除"; delBtn.style.cssText = "align-self:flex-end; font-size:11px; margin-top:5px; cursor:pointer; width:auto; padding:2px 8px; background:#ef4444;"; delBtn.addEventListener("click", () => { database.ref(`sessions_friday/${currentSelectedDateStr}/${player.name}`).remove(); }); li.appendChild(delBtn); } leaveList.appendChild(li);
   });
-  document.getElementById("attendCount").innerText = finalAttendCount; document.getElementById("waitCount").innerText = finalWaitCount; document.getElementById("leaveCount").innerText = leavePlayers.length;
+  
+  document.getElementById("attendCount").innerText = finalAttendCount; 
+  document.getElementById("waitCount").innerText = finalWaitCount; 
+  document.getElementById("leaveCount").innerText = leavePlayers.length;
 }
 
 submitBtn.addEventListener("click", () => {
