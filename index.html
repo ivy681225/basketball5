@@ -253,7 +253,12 @@ const database = firebase.database();
 const ADMIN_PASSWORD = "dan1225"; 
 let isAdminMode = false;
 
-const HOLIDAYS = ["2026-01-01", "2026-02-16", "2026-02-23", "2026-03-02", "2026-04-06", "2026-06-22", "2026-09-28", "2026-10-12"];
+// 2027年對照「2027行事曆.jpg」紅字直接跳過的星期五清單
+const HOLIDAYS = [
+  "2027-01-01", // 元旦放假
+  "2027-02-05", // 春節連假
+  "2027-09-17"  // 中秋節放假
+];
 
 let currentSelectedDateStr = "";
 let sessionOptionsData = {};
@@ -305,18 +310,25 @@ function findDefaultFridayStr(now, availableDates) {
 
 function initSelectorOptions() {
   const now = new Date();
-  const startDate = new Date("2026-07-03"); 
-  const endDate = new Date("2026-09-19");   // 強制限定到 9/18 週五球聚為止
-  
   let availableDates = [];
-  let loopFriday = new Date(startDate);
-  
-  while (loopFriday <= endDate) {
-    let loopStr = formatDateToYYYYMMDD(loopFriday);
-    if (!HOLIDAYS.includes(loopStr)) {
-      availableDates.push(loopStr);
+
+  // 🌟 修正：2026年期數現在從 2026-07-10 開始生成到 12-18
+  let loop2026 = new Date("2026-07-10");
+  const end2026 = new Date("2026-12-18");
+  while (loop2026 <= end2026) {
+    availableDates.push(formatDateToYYYYMMDD(loop2026));
+    loop2026.setDate(loop2026.getDate() + 7);
+  }
+
+  // 生成 2027 年全年度期數
+  let loop2027 = new Date("2027-01-01");
+  const end2027 = new Date("2027-12-31");
+  while (loop2027 <= end2027) {
+    let dateStr = formatDateToYYYYMMDD(loop2027);
+    if (!HOLIDAYS.includes(dateStr)) {
+      availableDates.push(dateStr);
     }
-    loopFriday.setDate(loopFriday.getDate() + 7); // 只精準推算週五
+    loop2027.setDate(loop2027.getDate() + 7);
   }
   
   availableDates.sort();
@@ -325,14 +337,25 @@ function initSelectorOptions() {
   availableDates.forEach(dateStr => {
     const fridayObj = new Date(dateStr);
     const sessionDetails = calculateSessionDetailsForDate(fridayObj);
+    const year = fridayObj.getFullYear();
+    const month = fridayObj.getMonth() + 1;
     
     let label = `📅 球聚日期：${dateStr} (週五)`;
+    
     if (dateStr === currentSelectedDateStr) {
       label += "【⭐ 當期球聚】";
     } else if (dateStr < currentSelectedDateStr) {
       label += "【歷史紀錄】";
     } else {
-      label += "【未來預約】";
+      if (year === 2026) {
+        if (month >= 7 && month <= 9) label += "【2026 第三季】";
+        else if (month >= 10 && month <= 12) label += "【2026 第四季】";
+      } else if (year === 2027) {
+        if (month >= 1 && month <= 3) label += "【2027 第一季】";
+        else if (month >= 4 && month <= 6) label += "【2027 第二季】";
+        else if (month >= 7 && month <= 9) label += "【2027 第三季】";
+        else if (month >= 10 && month <= 12) label += "【2027 第四季】";
+      }
     }
     
     sessionOptionsData[dateStr] = sessionDetails;
@@ -389,13 +412,11 @@ adminBtn.addEventListener("click", () => {
   if (inputPwd === ADMIN_PASSWORD) { isAdminMode = true; adminBtn.style.display = "none"; adminStatus.style.display = "inline"; alert("🔑 管理員認證成功！❌ 刪除功能已解鎖。"); renderList(rawCachedData); } else if (inputPwd !== null) { alert("❌ 密碼錯誤！"); }
 });
 
-// 🌟 修改核心：優化截止後的正取名單排序邏輯
 function renderList(data) {
   const attendList = document.getElementById("attendList"); const waitList = document.getElementById("waitList"); const leaveList = document.getElementById("leaveList");
   attendList.innerHTML = ""; waitList.innerHTML = ""; leaveList.innerHTML = "";
   
   const players = []; for (let id in data) { players.push({ id, ...data[id] }); }
-  // 基礎依然是以報名時間排序
   players.sort((a, b) => a.timestamp - b.timestamp);
   
   const now = new Date();
@@ -404,7 +425,6 @@ function renderList(data) {
   
   let seasonAttendCount = 0; let casualPlayers = []; let leavePlayers = [];
   
-  // 第一步：分離狀態
   players.forEach(p => { 
     if (p.status === "請假") { 
       leavePlayers.push(p); 
@@ -421,7 +441,6 @@ function renderList(data) {
   let finalAttendCount = 0; 
   let finalWaitCount = 0;
   
-  // 建立暫存陣列，用來分開存放正取區的「季租」與「散打遞補」
   let finalAttendSeasonListHTML = [];
   let finalAttendCasualListHTML = [];
 
@@ -484,23 +503,20 @@ function renderList(data) {
       li.appendChild(delBtn); 
     } 
     
-    // 分流推入對應的位置
     if (isWaitZone) {
       waitList.appendChild(li);
     } else {
       if (player.identity === "季租") {
-        finalAttendSeasonListHTML.push(li); // 季租專用陣列
+        finalAttendSeasonListHTML.push(li);
       } else {
-        finalAttendCasualListHTML.push(li); // 遞補散打專用陣列
+        finalAttendCasualListHTML.push(li);
       }
     }
   });
   
-  // 🌟 精準排序：先將所有「季租」推進正取區列表，緊接著再把「遞補散打」推進去（確保散打一律靠後）
   finalAttendSeasonListHTML.forEach(el => attendList.appendChild(el));
   finalAttendCasualListHTML.forEach(el => attendList.appendChild(el));
   
-  // 請假處理
   leavePlayers.forEach(player => {
     const timeStr = formatFullTimestamp(player.timestamp); const li = document.createElement("li"); const metaDiv = document.createElement("div"); metaDiv.className = "player-meta"; const nameSpan = document.createElement("span"); nameSpan.innerHTML = `<b>${player.name}</b>`; metaDiv.appendChild(nameSpan); const idClass = player.identity === "季租" ? "bg-blue" : "bg-green"; const tagSpan = document.createElement("span"); tagSpan.className = `identity-tag ${idClass}`; tagSpan.innerText = player.identity === "季租" ? "季租(假)" : "散打(假)"; metaDiv.appendChild(tagSpan); li.appendChild(metaDiv); const timeDiv = document.createElement("div"); timeDiv.className = "time-tag"; timeDiv.innerText = `⏱️ ${timeStr}`; li.appendChild(timeDiv);
     if (isAdminMode) { const delBtn = document.createElement("button"); delBtn.innerText = "❌ 刪除"; delBtn.style.cssText = "align-self:flex-end; font-size:11px; margin-top:5px; cursor:pointer; width:auto; padding:2px 8px; background:#ef4444;"; delBtn.addEventListener("click", () => { database.ref(`sessions_friday/${currentSelectedDateStr}/${player.name}`).remove(); }); li.appendChild(delBtn); } leaveList.appendChild(li);
