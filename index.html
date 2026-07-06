@@ -68,16 +68,20 @@
       font-size: 15px;
       font-family: inherit;
     }
-    /* 讓資料庫季度分類資料夾的字體變醒目 */
-    select optgroup {
-      font-weight: 700;
-      color: #4f46e5;
-      background: #f1f5f9;
+    /* 雙連動選單排版 */
+    .selector-flex {
+      display: flex;
+      gap: 12px;
+      flex-direction: column;
     }
-    select option {
-      font-weight: 500;
-      color: var(--text);
-      background: #ffffff;
+    @media (min-width: 601px) {
+      .selector-flex {
+        flex-direction: row;
+      }
+      .selector-flex .form-group {
+        flex: 1;
+        margin-bottom: 0;
+      }
     }
     .radio-group {
       display: flex;
@@ -190,10 +194,26 @@
 <body>
 
 <div class="container">
+  <!-- 🌟 修改重點：將單一選單拆成精美的「雙連動季度選單區塊」 -->
   <div class="card form-card session-selector-zone">
-    <div class="form-group" style="margin-bottom: 0;">
-      <label for="sessionSelect" style="color: #4f46e5; font-size: 15px;">🔍 切換球聚歷史紀錄 / 預約期數：</label>
-      <select id="sessionSelect" style="border-color: #4f46e5; font-weight: bold; color: #4f46e5;"></select>
+    <div class="selector-flex">
+      <div class="form-group">
+        <label for="quarterSelect" style="color: #4f46e5; font-size: 15px;">🔍 1. 先選擇球聚季度：</label>
+        <select id="quarterSelect" style="border-color: #4f46e5; font-weight: bold; color: #4f46e5;">
+          <option value="current">⭐ 當期熱門球聚登記</option>
+          <option value="y2026q3">📅 2026 第三季 (7-9月)</option>
+          <option value="y2026q4">📅 2026 第四季 (10-12月)</option>
+          <option value="y2027q1">📅 2027 第一季 (1-3月)</option>
+          <option value="y2027q2">📅 2027 第二季 (4-6月)</option>
+          <option value="y2027q3">📅 2027 第三季 (7-9月)</option>
+          <option value="y2027q4">📅 2027 第四季 (10-12月)</option>
+          <option value="history">📜 歷史球聚紀錄查詢</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="sessionSelect" style="color: #4f46e5; font-size: 15px;">📅 2. 再選擇球聚日期：</label>
+        <select id="sessionSelect" style="border-color: #4f46e5; font-weight: bold; color: #0f172a;"></select>
+      </div>
     </div>
   </div>
 
@@ -264,7 +284,7 @@ const database = firebase.database();
 const ADMIN_PASSWORD = "dan1225"; 
 let isAdminMode = false;
 
-// 精準過濾 2026 及 2027 指定停修日期
+// 包含所有停修日期
 const HOLIDAYS = [
   "2026-09-25", "2026-10-09", "2026-12-25", 
   "2027-01-01", "2027-02-05", "2027-04-30", "2027-12-24", "2027-12-31"  
@@ -275,6 +295,14 @@ let sessionOptionsData = {};
 let dbRef = null;
 let rawCachedData = {};
 
+// 🌟 新增分類容器物件，用來實現徹底分流
+let structuredQuarterData = {
+  current: [], history: [],
+  y2026q3: [], y2026q4: [],
+  y2027q1: [], y2027q2: [], y2027q3: [], y2027q4: []
+};
+
+const quarterSelect = document.getElementById("quarterSelect");
 const sessionSelect = document.getElementById("sessionSelect");
 const deadlineMessage = document.getElementById("deadlineMessage");
 const submitBtn = document.getElementById("submitBtn");
@@ -318,12 +346,11 @@ function findDefaultFridayStr(now, availableDates) {
   return availableDates[0];
 }
 
-// 🌟 核心修改：利用 HTML optgroup 將所有日期劃分為「季度資料夾」
 function initSelectorOptions() {
   const now = new Date();
   let availableDates = [];
 
-  // 生成 2026 期數
+  // 1. 生成 2026 期數
   let loop2026 = new Date("2026-07-10");
   const end2026 = new Date("2026-12-31");
   while (loop2026 <= end2026) {
@@ -332,7 +359,7 @@ function initSelectorOptions() {
     loop2026.setDate(loop2026.getDate() + 7);
   }
 
-  // 生成 2027 期數
+  // 2. 生成 2027 期數
   let loop2027 = new Date("2027-01-01");
   const end2027 = new Date("2027-12-31");
   while (loop2027 <= end2027) {
@@ -344,27 +371,7 @@ function initSelectorOptions() {
   availableDates.sort();
   currentSelectedDateStr = findDefaultFridayStr(now, availableDates);
   
-  // 建立各大季度的「置物櫃容器」
-  const groups = {
-    current: document.createElement("optgroup"),
-    history: document.createElement("optgroup"),
-    y2026q3: document.createElement("optgroup"),
-    y2026q4: document.createElement("optgroup"),
-    y2027q1: document.createElement("optgroup"),
-    y2027q2: document.createElement("optgroup"),
-    y2027q3: document.createElement("optgroup"),
-    y2027q4: document.createElement("optgroup")
-  };
-  
-  groups.current.label = "⭐ 當期熱門球聚登記";
-  groups.history.label = "📜 歷史球聚紀錄查詢";
-  groups.y2026q3.label = "📅 2026 第三季 (7-9月)";
-  groups.y2026q4.label = "📅 2026 第四季 (10-12月)";
-  groups.y2027q1.label = "📅 2027 第一季 (1-3月)";
-  groups.y2027q2.label = "📅 2027 第二季 (4-6月)";
-  groups.y2027q3.label = "📅 2027 第三季 (7-9月)";
-  groups.y2027q4.label = "📅 2027 第四季 (10-12月)";
-  
+  // 3. 將各個日期徹底打包分流存進記憶體
   availableDates.forEach(dateStr => {
     const fridayObj = new Date(dateStr);
     const sessionDetails = calculateSessionDetailsForDate(fridayObj);
@@ -373,44 +380,71 @@ function initSelectorOptions() {
     
     sessionOptionsData[dateStr] = sessionDetails;
     
-    const opt = document.createElement("option");
-    opt.value = dateStr;
-    opt.innerText = `📆 球聚日期：${dateStr} (週五)`;
+    let item = { value: dateStr, text: `📆 球聚日期：${dateStr} (週五)` };
     
-    // 分流塞入正確的選單群組中
     if (dateStr === currentSelectedDateStr) {
-      opt.innerText += "【⭐ 當期球聚】";
-      opt.selected = true;
-      groups.current.appendChild(opt);
+      item.text += "【⭐ 當期球聚】";
+      structuredQuarterData.current.push(item);
     } else if (dateStr < currentSelectedDateStr) {
-      groups.history.appendChild(opt);
+      structuredQuarterData.history.push(item);
     } else {
       if (year === 2026) {
-        if (month >= 7 && month <= 9) groups.y2026q3.appendChild(opt);
-        else if (month >= 10 && month <= 12) groups.y2026q4.appendChild(opt);
+        if (month >= 7 && month <= 9) structuredQuarterData.y2026q3.push(item);
+        else if (month >= 10 && month <= 12) structuredQuarterData.y2026q4.push(item);
       } else if (year === 2027) {
-        if (month >= 1 && month <= 3) groups.y2027q1.appendChild(opt);
-        else if (month >= 4 && month <= 6) groups.y2027q2.appendChild(opt);
-        else if (month >= 7 && month <= 9) groups.y2027q3.appendChild(opt);
-        else if (month >= 10 && month <= 12) groups.y2027q4.appendChild(opt);
+        if (month >= 1 && month <= 3) structuredQuarterData.y2027q1.push(item);
+        else if (month >= 4 && month <= 6) structuredQuarterData.y2027q2.push(item);
+        else if (month >= 7 && month <= 9) structuredQuarterData.y2027q3.push(item);
+        else if (month >= 10 && month <= 12) structuredQuarterData.y2027q4.push(item);
       }
     }
   });
   
-  // 將有內含日期的群組依序掛載上選單（沒日期的自動隱藏）
-  if (groups.current.children.length > 0) sessionSelect.appendChild(groups.current);
-  if (groups.y2026q3.children.length > 0) sessionSelect.appendChild(groups.y2026q3);
-  if (groups.y2026q4.children.length > 0) sessionSelect.appendChild(groups.y2026q4);
-  if (groups.y2027q1.children.length > 0) sessionSelect.appendChild(groups.y2027q1);
-  if (groups.y2027q2.children.length > 0) sessionSelect.appendChild(groups.y2027q2);
-  if (groups.y2027q3.children.length > 0) sessionSelect.appendChild(groups.y2027q3);
-  if (groups.y2027q4.children.length > 0) sessionSelect.appendChild(groups.y2027q4);
-  if (groups.history.children.length > 0) sessionSelect.appendChild(groups.history);
-  
-  switchFirebaseNode(currentSelectedDateStr);
+  // 預設將第二個下拉選單載入「⭐ 當期熱門球聚登記」
+  renderDateOptions("current");
 }
 
+// 🌟 連動渲染核心：負責清除並填入選定季度的日期選項
+function renderDateOptions(targetQuarter) {
+  sessionSelect.innerHTML = "";
+  let list = structuredQuarterData[targetQuarter] || [];
+  
+  if (list.length === 0) {
+    const opt = document.createElement("option");
+    opt.innerText = "本季暫無安排場次或皆為當場/歷史紀錄";
+    opt.disabled = true;
+    sessionSelect.appendChild(opt);
+    return;
+  }
+  
+  list.forEach(item => {
+    const opt = document.createElement("option");
+    opt.value = item.value;
+    opt.innerText = item.text;
+    if (item.value === currentSelectedDateStr) {
+      opt.selected = true;
+    }
+    sessionSelect.appendChild(opt);
+  });
+  
+  // 切換完畢後立刻將資料庫連線導向選單中的第一個或被選中的日期
+  switchFirebaseNode(sessionSelect.value);
+}
+
+// 監聽第一個選單：一換季度，第二個選單立刻大洗牌
+quarterSelect.addEventListener("change", (e) => {
+  renderDateOptions(e.target.value);
+});
+
+// 監聽第二個選單：一換日期，立刻更換資料庫讀取節點
+sessionSelect.addEventListener("change", (e) => {
+  if (e.target.value) {
+    switchFirebaseNode(e.target.value);
+  }
+});
+
 function switchFirebaseNode(dateStr) {
+  if (!dateStr) return;
   if (dbRef) dbRef.off();
   currentSelectedDateStr = dateStr;
   dbRef = database.ref(`sessions_friday/${dateStr}`);
@@ -420,10 +454,6 @@ function switchFirebaseNode(dateStr) {
   });
   updateSystemStatus();
 }
-
-sessionSelect.addEventListener("change", (e) => {
-  switchFirebaseNode(e.target.value);
-});
 
 function updateSystemStatus() {
   const now = new Date();
