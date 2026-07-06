@@ -68,6 +68,17 @@
       font-size: 15px;
       font-family: inherit;
     }
+    /* 讓資料庫季度分類資料夾的字體變醒目 */
+    select optgroup {
+      font-weight: 700;
+      color: #4f46e5;
+      background: #f1f5f9;
+    }
+    select option {
+      font-weight: 500;
+      color: var(--text);
+      background: #ffffff;
+    }
     .radio-group {
       display: flex;
       gap: 20px;
@@ -253,18 +264,10 @@ const database = firebase.database();
 const ADMIN_PASSWORD = "dan1225"; 
 let isAdminMode = false;
 
-// 🌟 完美整合：2026下半年(3天) 與 2027全年度(5天) 的所有指定停修星期五清單
+// 精準過濾 2026 及 2027 指定停修日期
 const HOLIDAYS = [
-  // 2026 年停休日
-  "2026-09-25", 
-  "2026-10-09", 
-  "2026-12-25", 
-  // 2027 年停休日
-  "2027-01-01", 
-  "2027-02-05", 
-  "2027-04-30", 
-  "2027-12-24", 
-  "2027-12-31"  
+  "2026-09-25", "2026-10-09", "2026-12-25", 
+  "2027-01-01", "2027-02-05", "2027-04-30", "2027-12-24", "2027-12-31"  
 ];
 
 let currentSelectedDateStr = "";
@@ -315,34 +318,52 @@ function findDefaultFridayStr(now, availableDates) {
   return availableDates[0];
 }
 
+// 🌟 核心修改：利用 HTML optgroup 將所有日期劃分為「季度資料夾」
 function initSelectorOptions() {
   const now = new Date();
   let availableDates = [];
 
-  // 生成 2026 年期數 (從 2026-07-10 生成到 12-31)
+  // 生成 2026 期數
   let loop2026 = new Date("2026-07-10");
   const end2026 = new Date("2026-12-31");
   while (loop2026 <= end2026) {
     let dateStr = formatDateToYYYYMMDD(loop2026);
-    if (!HOLIDAYS.includes(dateStr)) {
-      availableDates.push(dateStr);
-    }
+    if (!HOLIDAYS.includes(dateStr)) { availableDates.push(dateStr); }
     loop2026.setDate(loop2026.getDate() + 7);
   }
 
-  // 生成 2027 年全年度期數
+  // 生成 2027 期數
   let loop2027 = new Date("2027-01-01");
   const end2027 = new Date("2027-12-31");
   while (loop2027 <= end2027) {
     let dateStr = formatDateToYYYYMMDD(loop2027);
-    if (!HOLIDAYS.includes(dateStr)) {
-      availableDates.push(dateStr);
-    }
+    if (!HOLIDAYS.includes(dateStr)) { availableDates.push(dateStr); }
     loop2027.setDate(loop2027.getDate() + 7);
   }
   
   availableDates.sort();
   currentSelectedDateStr = findDefaultFridayStr(now, availableDates);
+  
+  // 建立各大季度的「置物櫃容器」
+  const groups = {
+    current: document.createElement("optgroup"),
+    history: document.createElement("optgroup"),
+    y2026q3: document.createElement("optgroup"),
+    y2026q4: document.createElement("optgroup"),
+    y2027q1: document.createElement("optgroup"),
+    y2027q2: document.createElement("optgroup"),
+    y2027q3: document.createElement("optgroup"),
+    y2027q4: document.createElement("optgroup")
+  };
+  
+  groups.current.label = "⭐ 當期熱門球聚登記";
+  groups.history.label = "📜 歷史球聚紀錄查詢";
+  groups.y2026q3.label = "📅 2026 第三季 (7-9月)";
+  groups.y2026q4.label = "📅 2026 第四季 (10-12月)";
+  groups.y2027q1.label = "📅 2027 第一季 (1-3月)";
+  groups.y2027q2.label = "📅 2027 第二季 (4-6月)";
+  groups.y2027q3.label = "📅 2027 第三季 (7-9月)";
+  groups.y2027q4.label = "📅 2027 第四季 (10-12月)";
   
   availableDates.forEach(dateStr => {
     const fridayObj = new Date(dateStr);
@@ -350,33 +371,41 @@ function initSelectorOptions() {
     const year = fridayObj.getFullYear();
     const month = fridayObj.getMonth() + 1;
     
-    let label = `📅 球聚日期：${dateStr} (週五)`;
-    
-    if (dateStr === currentSelectedDateStr) {
-      label += "【⭐ 當期球聚】";
-    } else if (dateStr < currentSelectedDateStr) {
-      label += "【歷史紀錄】";
-    } else {
-      // 🌟 精準分配所有季度標籤，沒有一個會遺漏
-      if (year === 2026) {
-        if (month >= 7 && month <= 9) label += "【2026 第三季】";
-        else if (month >= 10 && month <= 12) label += "【2026 第四季】";
-      } else if (year === 2027) {
-        if (month >= 1 && month <= 3) label += "【2027 第一季】";
-        else if (month >= 4 && month <= 6) label += "【2027 第二季】";
-        else if (month >= 7 && month <= 9) label += "【2027 第三季】";
-        else if (month >= 10 && month <= 12) label += "【2027 第四季】";
-      }
-    }
-    
     sessionOptionsData[dateStr] = sessionDetails;
     
     const opt = document.createElement("option");
     opt.value = dateStr;
-    opt.innerText = label;
-    if (dateStr === currentSelectedDateStr) opt.selected = true;
-    sessionSelect.appendChild(opt);
+    opt.innerText = `📆 球聚日期：${dateStr} (週五)`;
+    
+    // 分流塞入正確的選單群組中
+    if (dateStr === currentSelectedDateStr) {
+      opt.innerText += "【⭐ 當期球聚】";
+      opt.selected = true;
+      groups.current.appendChild(opt);
+    } else if (dateStr < currentSelectedDateStr) {
+      groups.history.appendChild(opt);
+    } else {
+      if (year === 2026) {
+        if (month >= 7 && month <= 9) groups.y2026q3.appendChild(opt);
+        else if (month >= 10 && month <= 12) groups.y2026q4.appendChild(opt);
+      } else if (year === 2027) {
+        if (month >= 1 && month <= 3) groups.y2027q1.appendChild(opt);
+        else if (month >= 4 && month <= 6) groups.y2027q2.appendChild(opt);
+        else if (month >= 7 && month <= 9) groups.y2027q3.appendChild(opt);
+        else if (month >= 10 && month <= 12) groups.y2027q4.appendChild(opt);
+      }
+    }
   });
+  
+  // 將有內含日期的群組依序掛載上選單（沒日期的自動隱藏）
+  if (groups.current.children.length > 0) sessionSelect.appendChild(groups.current);
+  if (groups.y2026q3.children.length > 0) sessionSelect.appendChild(groups.y2026q3);
+  if (groups.y2026q4.children.length > 0) sessionSelect.appendChild(groups.y2026q4);
+  if (groups.y2027q1.children.length > 0) sessionSelect.appendChild(groups.y2027q1);
+  if (groups.y2027q2.children.length > 0) sessionSelect.appendChild(groups.y2027q2);
+  if (groups.y2027q3.children.length > 0) sessionSelect.appendChild(groups.y2027q3);
+  if (groups.y2027q4.children.length > 0) sessionSelect.appendChild(groups.y2027q4);
+  if (groups.history.children.length > 0) sessionSelect.appendChild(groups.history);
   
   switchFirebaseNode(currentSelectedDateStr);
 }
