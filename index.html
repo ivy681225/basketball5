@@ -253,11 +253,18 @@ const database = firebase.database();
 const ADMIN_PASSWORD = "dan1225"; 
 let isAdminMode = false;
 
-// 2027年對照「2027行事曆.jpg」紅字直接跳過的星期五清單
+// 🌟 完美整合：2026下半年(3天) 與 2027全年度(5天) 的所有指定停修星期五清單
 const HOLIDAYS = [
-  "2027-01-01", // 元旦放假
-  "2027-02-05", // 春節連假
-  "2027-09-17"  // 中秋節放假
+  // 2026 年停休日
+  "2026-09-25", 
+  "2026-10-09", 
+  "2026-12-25", 
+  // 2027 年停休日
+  "2027-01-01", 
+  "2027-02-05", 
+  "2027-04-30", 
+  "2027-12-24", 
+  "2027-12-31"  
 ];
 
 let currentSelectedDateStr = "";
@@ -312,11 +319,14 @@ function initSelectorOptions() {
   const now = new Date();
   let availableDates = [];
 
-  // 🌟 修正：2026年期數現在從 2026-07-10 開始生成到 12-18
+  // 生成 2026 年期數 (從 2026-07-10 生成到 12-31)
   let loop2026 = new Date("2026-07-10");
-  const end2026 = new Date("2026-12-18");
+  const end2026 = new Date("2026-12-31");
   while (loop2026 <= end2026) {
-    availableDates.push(formatDateToYYYYMMDD(loop2026));
+    let dateStr = formatDateToYYYYMMDD(loop2026);
+    if (!HOLIDAYS.includes(dateStr)) {
+      availableDates.push(dateStr);
+    }
     loop2026.setDate(loop2026.getDate() + 7);
   }
 
@@ -347,6 +357,7 @@ function initSelectorOptions() {
     } else if (dateStr < currentSelectedDateStr) {
       label += "【歷史紀錄】";
     } else {
+      // 🌟 精準分配所有季度標籤，沒有一個會遺漏
       if (year === 2026) {
         if (month >= 7 && month <= 9) label += "【2026 第三季】";
         else if (month >= 10 && month <= 12) label += "【2026 第四季】";
