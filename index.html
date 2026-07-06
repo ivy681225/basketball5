@@ -68,21 +68,18 @@
       font-size: 15px;
       font-family: inherit;
     }
-    /* 雙連動選單排版 */
+    
+    /* 🌟 修改核心：強制不論手機還是電腦，選單通通垂直上下排列，寬度填滿 */
     .selector-flex {
       display: flex;
-      gap: 12px;
       flex-direction: column;
+      gap: 16px; /* 拉開兩顆選單的上下間距，視覺更舒服 */
     }
-    @media (min-width: 601px) {
-      .selector-flex {
-        flex-direction: row;
-      }
-      .selector-flex .form-group {
-        flex: 1;
-        margin-bottom: 0;
-      }
+    .selector-flex .form-group {
+      margin-bottom: 0;
+      width: 100%;
     }
+    
     .radio-group {
       display: flex;
       gap: 20px;
@@ -194,7 +191,6 @@
 <body>
 
 <div class="container">
-  <!-- 🌟 修改重點：將單一選單拆成精美的「雙連動季度選單區塊」 -->
   <div class="card form-card session-selector-zone">
     <div class="selector-flex">
       <div class="form-group">
@@ -284,7 +280,6 @@ const database = firebase.database();
 const ADMIN_PASSWORD = "dan1225"; 
 let isAdminMode = false;
 
-// 包含所有停修日期
 const HOLIDAYS = [
   "2026-09-25", "2026-10-09", "2026-12-25", 
   "2027-01-01", "2027-02-05", "2027-04-30", "2027-12-24", "2027-12-31"  
@@ -295,7 +290,6 @@ let sessionOptionsData = {};
 let dbRef = null;
 let rawCachedData = {};
 
-// 🌟 新增分類容器物件，用來實現徹底分流
 let structuredQuarterData = {
   current: [], history: [],
   y2026q3: [], y2026q4: [],
@@ -350,7 +344,6 @@ function initSelectorOptions() {
   const now = new Date();
   let availableDates = [];
 
-  // 1. 生成 2026 期數
   let loop2026 = new Date("2026-07-10");
   const end2026 = new Date("2026-12-31");
   while (loop2026 <= end2026) {
@@ -359,7 +352,6 @@ function initSelectorOptions() {
     loop2026.setDate(loop2026.getDate() + 7);
   }
 
-  // 2. 生成 2027 期數
   let loop2027 = new Date("2027-01-01");
   const end2027 = new Date("2027-12-31");
   while (loop2027 <= end2027) {
@@ -371,7 +363,6 @@ function initSelectorOptions() {
   availableDates.sort();
   currentSelectedDateStr = findDefaultFridayStr(now, availableDates);
   
-  // 3. 將各個日期徹底打包分流存進記憶體
   availableDates.forEach(dateStr => {
     const fridayObj = new Date(dateStr);
     const sessionDetails = calculateSessionDetailsForDate(fridayObj);
@@ -400,11 +391,9 @@ function initSelectorOptions() {
     }
   });
   
-  // 預設將第二個下拉選單載入「⭐ 當期熱門球聚登記」
   renderDateOptions("current");
 }
 
-// 🌟 連動渲染核心：負責清除並填入選定季度的日期選項
 function renderDateOptions(targetQuarter) {
   sessionSelect.innerHTML = "";
   let list = structuredQuarterData[targetQuarter] || [];
@@ -421,27 +410,15 @@ function renderDateOptions(targetQuarter) {
     const opt = document.createElement("option");
     opt.value = item.value;
     opt.innerText = item.text;
-    if (item.value === currentSelectedDateStr) {
-      opt.selected = true;
-    }
+    if (item.value === currentSelectedDateStr) { opt.selected = true; }
     sessionSelect.appendChild(opt);
   });
   
-  // 切換完畢後立刻將資料庫連線導向選單中的第一個或被選中的日期
   switchFirebaseNode(sessionSelect.value);
 }
 
-// 監聽第一個選單：一換季度，第二個選單立刻大洗牌
-quarterSelect.addEventListener("change", (e) => {
-  renderDateOptions(e.target.value);
-});
-
-// 監聽第二個選單：一換日期，立刻更換資料庫讀取節點
-sessionSelect.addEventListener("change", (e) => {
-  if (e.target.value) {
-    switchFirebaseNode(e.target.value);
-  }
-});
+quarterSelect.addEventListener("change", (e) => { renderDateOptions(e.target.value); });
+sessionSelect.addEventListener("change", (e) => { if (e.target.value) { switchFirebaseNode(e.target.value); } });
 
 function switchFirebaseNode(dateStr) {
   if (!dateStr) return;
@@ -496,14 +473,10 @@ function renderList(data) {
   let seasonAttendCount = 0; let casualPlayers = []; let leavePlayers = [];
   
   players.forEach(p => { 
-    if (p.status === "請假") { 
-      leavePlayers.push(p); 
-    } else if (p.status === "出賽") { 
-      if (p.identity === "季租") { 
-        seasonAttendCount++; 
-      } else { 
-        casualPlayers.push(p); 
-      } 
+    if (p.status === "請假") { leavePlayers.push(p); } 
+    else if (p.status === "出賽") { 
+      if (p.identity === "季租") { seasonAttendCount++; } 
+      else { casualPlayers.push(p); } 
     } 
   });
   
@@ -528,27 +501,17 @@ function renderList(data) {
     let labelText = ""; let idClass = ""; let isWaitZone = false;
     
     if (player.identity === "季租") { 
-      idClass = "bg-blue"; 
-      labelText = "季租"; 
-      finalAttendCount++; 
+      idClass = "bg-blue"; labelText = "季租"; finalAttendCount++; 
     } else { 
       let idx = casualPlayers.findIndex(c => c.name === player.name); 
       if (isClosed) { 
         if (idx !== -1 && idx < availableSlots) { 
-          idClass = "bg-green"; 
-          labelText = `散打(遞補 ${idx + 1})`; 
-          finalAttendCount++; 
+          idClass = "bg-green"; labelText = `散打(遞補 ${idx + 1})`; finalAttendCount++; 
         } else { 
-          idClass = "bg-orange"; 
-          labelText = `散打(候 ${idx - availableSlots + 1})`; 
-          isWaitZone = true;
-          finalWaitCount++; 
+          idClass = "bg-orange"; labelText = `散打(候 ${idx - availableSlots + 1})`; isWaitZone = true; finalWaitCount++; 
         } 
       } else { 
-        idClass = "bg-orange"; 
-        labelText = `散打(候 ${idx + 1})`; 
-        isWaitZone = true;
-        finalWaitCount++; 
+        idClass = "bg-orange"; labelText = `散打(候 ${idx + 1})`; isWaitZone = true; finalWaitCount++; 
       } 
     }
     
@@ -573,14 +536,10 @@ function renderList(data) {
       li.appendChild(delBtn); 
     } 
     
-    if (isWaitZone) {
-      waitList.appendChild(li);
-    } else {
-      if (player.identity === "季租") {
-        finalAttendSeasonListHTML.push(li);
-      } else {
-        finalAttendCasualListHTML.push(li);
-      }
+    if (isWaitZone) { waitList.appendChild(li); } 
+    else {
+      if (player.identity === "季租") { finalAttendSeasonListHTML.push(li); } 
+      else { finalAttendCasualListHTML.push(li); }
     }
   });
   
