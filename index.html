@@ -69,11 +69,10 @@
       font-family: inherit;
     }
     
-    /* 🌟 修改核心：強制不論手機還是電腦，選單通通垂直上下排列，寬度填滿 */
     .selector-flex {
       display: flex;
       flex-direction: column;
-      gap: 16px; /* 拉開兩顆選單的上下間距，視覺更舒服 */
+      gap: 16px;
     }
     .selector-flex .form-group {
       margin-bottom: 0;
@@ -373,10 +372,13 @@ function initSelectorOptions() {
     
     let item = { value: dateStr, text: `📆 球聚日期：${dateStr} (週五)` };
     
+    // 🌟 核心修正：將當期球聚獨立包裝的同時，原本所屬的季度或歷史選單，依然要完全複製一份進去！
     if (dateStr === currentSelectedDateStr) {
-      item.text += "【⭐ 當期球聚】";
-      structuredQuarterData.current.push(item);
-    } else if (dateStr < currentSelectedDateStr) {
+      let currentItem = { value: dateStr, text: item.text + "【⭐ 當期球聚】" };
+      structuredQuarterData.current.push(currentItem);
+    }
+    
+    if (dateStr < currentSelectedDateStr) {
       structuredQuarterData.history.push(item);
     } else {
       if (year === 2026) {
@@ -400,7 +402,7 @@ function renderDateOptions(targetQuarter) {
   
   if (list.length === 0) {
     const opt = document.createElement("option");
-    opt.innerText = "本季暫無安排場次或皆為當場/歷史紀錄";
+    opt.innerText = "本季暫無安排場次或皆為歷史紀錄";
     opt.disabled = true;
     sessionSelect.appendChild(opt);
     return;
